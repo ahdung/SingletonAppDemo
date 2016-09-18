@@ -11,12 +11,12 @@ namespace AhDung
         public FmMain()
         {
             InitializeComponent();
-            
+
             this.Text = AppInfo.TitleAndVer;
             tray.Icon = Icon.FromHandle(Properties.Resources.DemoIcon.GetHicon());
 
             //响应该事件，以在收到特定消息时显示自身
-            MessageHelper.ShowMessageReceived += (s, e) => ShowForm();
+            MessageHelper.ShowMessageReceived += showFormToolStripMenuItem_Click;
         }
 
         private void FmMain_FormClosing(object sender, FormClosingEventArgs e)
@@ -29,20 +29,10 @@ namespace AhDung
             }
         }
 
-        private void ShowForm()
-        {
-            tray.Visible = false;
-            this.Visible = true;
-            if (this.WindowState == FormWindowState.Minimized)
-            {
-                this.WindowState = FormWindowState.Normal;
-            }
-            this.Activate();//内含置顶动作
-        }
-
         private void showFormToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            ShowForm();
+            tray.Visible = false;
+            MessageHelper.ShowForm(this);
         }
 
         private void exitToolStripMenuItem_Click(object sender, EventArgs e)
