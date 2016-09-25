@@ -1,7 +1,8 @@
-﻿using Microsoft.Win32;
-using System;
+﻿using System;
+using System.IO;
 using System.Reflection;
 using System.Text.RegularExpressions;
+using Microsoft.Win32;
 
 namespace AhDung
 {
@@ -54,11 +55,11 @@ namespace AhDung
         /// <summary>
         /// 程序集所在目录
         /// </summary>
-        public static string Path
+        public static string Directory
         {
             get
             {
-                return _path ?? (_path = System.IO.Path.GetDirectoryName(_assembly.Location));
+                return _path ?? (_path = Path.GetDirectoryName(_assembly.Location));
             }
         }
 
@@ -69,7 +70,7 @@ namespace AhDung
         {
             get
             {
-                return _fileName ?? (_fileName = System.IO.Path.GetFileName(Location));
+                return _fileName ?? (_fileName = Path.GetFileName(Location));
             }
         }
 

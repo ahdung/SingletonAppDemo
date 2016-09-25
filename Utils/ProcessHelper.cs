@@ -182,7 +182,7 @@ namespace AhDung
         }
 
         /// <summary>
-        /// 根据进程句柄获取映像文件路径（dos/nt格式可选，后者性能高）。出错返回null，不抛异常
+        /// 根据进程句柄获取映像文件路径（dos/nt格式可选，后者性能高）
         /// <para>- 出错返回null，不抛异常</para>
         /// <para>- errorCode为0表示成功</para>
         /// </summary>
@@ -303,7 +303,7 @@ namespace AhDung
         /// <exception cref="Win32Exception"></exception>
         public static IEnumerable<ProcessInfo> EnumProcesses(string imagePath)
         {
-            if (imagePath == null || imagePath.Trim().Length == 0)
+            if (imagePath == null)
             {
                 throw new ArgumentNullException();
             }
@@ -378,7 +378,7 @@ namespace AhDung
         /// <exception cref="Win32Exception" />
         public static bool IsProcessOnWinSta(uint pid)
         {
-            //本进程所在窗口站
+            //取得本进程所在窗口站
             var ws = NativeMethods.GetProcessWindowStation();
             if (ws == IntPtr.Zero)
             {
@@ -396,7 +396,7 @@ namespace AhDung
                     return true;
                 }
 
-                //遍历每个桌面中的所有窗口，并确定窗口所在进程与目标进程比较
+                //遍历每个桌面中的所有窗口，并将窗口所在进程与目标进程比较
                 //对得上就返回true并结束后续遍历
                 NativeMethods.EnumDesktopWindows(desk, (window, prm) =>
                 {
