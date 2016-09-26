@@ -36,7 +36,7 @@ namespace AhDung
         /// 读取short。无消息时会阻塞
         /// </summary>
         /// <exception cref="Win32Exception" />
-        public static short Read()
+        public static short ReadInt16()
         {
             var buffer = new byte[2];
             int i;

@@ -55,31 +55,31 @@ namespace AhDung
             }
         }
 
-        static string _slotNamePrefix;
+        static string _slotName;
         /// <summary>
-        /// 邮槽名前缀（程序集名+程序集GUID）
+        /// 邮槽名（程序集名+程序集GUID+ForShow）
         /// </summary>
-        private static string SlotNamePrefix
+        private static string SlotName
         {
             get
             {
-                if (_slotNamePrefix == null)
+                if (_slotName == null)
                 {
                     Assembly asm = Assembly.GetExecutingAssembly();
                     string name = asm.GetName().Name;
                     string guid = ((GuidAttribute)Attribute.GetCustomAttribute(asm, typeof(GuidAttribute))).Value;
-                    _slotNamePrefix = name + guid;
+                    _slotName = name + guid + "ForShow";
                 }
-                return _slotNamePrefix;
+                return _slotName;
             }
         }
 
         /// <summary>
-        /// 组织邮槽名（前缀+进程ID）
+        /// 带进程ID的邮槽名。pid为0时返回原名
         /// </summary>
-        private static string MakeSlotName(uint pid)
+        private static string SlotNameAppendPid(uint pid)
         {
-            return SlotNamePrefix + pid;
+            return pid == 0 ? SlotName : (SlotName + pid);
         }
 
         /// <summary>
@@ -98,52 +98,43 @@ namespace AhDung
             bool exists = false;
             uint pid = 0;
 
-            foreach (var p in ProcessHelper.EnumProcesses())
+            if (pathSensitive)
             {
-                if (p.Id == ProcessHelper.CurrentProcessId
-                    || !string.Equals(p.Name, ProcessHelper.CurrentProcessName, StringComparison.OrdinalIgnoreCase)
-                    || !ProcessHelper.IsProcessOnWinSta(p.Id))//该条件性能最差，故放最后
+                foreach (var p in ProcessHelper.EnumProcesses(ProcessHelper.CurrentProcessImageFileNameNt, true))
                 {
-                    continue;
-                }
-
-                if (pathSensitive)
-                {
-                    if (string.Equals(ProcessHelper.GetProcessImageFileNameNt(p.Id), ProcessHelper.CurrentProcessImageFileNameNt, StringComparison.OrdinalIgnoreCase))
+                    if (p.Id == ProcessHelper.CurrentProcessId
+                        || !ProcessHelper.OnSameWinSta(p.Id))
                     {
-                        exists = true;
-                        pid = p.Id;
-                        break;
+                        continue;
                     }
-                    continue;
-                }
-
-                if (MailslotUtil.Exists(MakeSlotName(p.Id)))
-                {
                     exists = true;
                     pid = p.Id;
                     break;
                 }
             }
+            else if (MailslotUtil.Exists(SlotName))
+            {
+                exists = true;
+            }
 
             if (exists)
             {
-                SendShowCode(pid);
-                Environment.Exit(Environment.ExitCode);//Env.Exit后面代码的不会执行
+                SendShowCode(SlotNameAppendPid(pid));
+                Environment.Exit(-1);//Env.Exit后面代码的不会执行
             }
 
-            MailslotUtil.Create(MakeSlotName(ProcessHelper.CurrentProcessId));
+            MailslotUtil.Create(SlotNameAppendPid(pathSensitive ? ProcessHelper.CurrentProcessId : 0));
             BeginReceive();
         }
 
         /// <summary>
         /// 向已存实例发送显示代号
         /// </summary>
-        private static void SendShowCode(uint pid)
+        private static void SendShowCode(string slotName)
         {
             try
             {
-                MailslotUtil.Write(MakeSlotName(pid), ShowCode);
+                MailslotUtil.Write(slotName, ShowCode);
             }
             catch (Win32Exception ex)
             {
@@ -161,7 +152,7 @@ namespace AhDung
             {
                 do
                 {
-                    if (MailslotUtil.Read() == ShowCode)
+                    if (MailslotUtil.ReadInt16() == ShowCode)
                     {
                         if (SyncContext == null)
                         {

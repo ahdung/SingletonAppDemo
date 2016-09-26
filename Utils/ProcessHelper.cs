@@ -296,12 +296,13 @@ namespace AhDung
         /// <summary>
         /// 遍历指定映像文件路径的进程
         /// </summary>
-        /// <param name="imagePath">DOS路径格式</param>
+        /// <param name="imagePath">映像路径</param>
+        /// <param name="isNtPath">是否NT路径格式（true快）</param>
         /// <exception cref="ArgumentException"></exception>
         /// <exception cref="ArgumentNullException"></exception>
         /// <exception cref="OutOfMemoryException"></exception>
         /// <exception cref="Win32Exception"></exception>
-        public static IEnumerable<ProcessInfo> EnumProcesses(string imagePath)
+        public static IEnumerable<ProcessInfo> EnumProcesses(string imagePath, bool isNtPath = false)
         {
             if (imagePath == null)
             {
@@ -309,16 +310,21 @@ namespace AhDung
             }
 
             string pName = Path.GetFileName(imagePath);
+            GetStringByUIntDelegate getImgFile = isNtPath
+                ? new GetStringByUIntDelegate(GetProcessImageFileNameNt)
+                : new GetStringByUIntDelegate(GetProcessImageFileName);
 
             foreach (var p in EnumProcesses())
             {
                 if (string.Equals(pName, p.Name, StringComparison.OrdinalIgnoreCase)
-                    && string.Equals(imagePath, GetProcessImageFileName(p.Id), StringComparison.OrdinalIgnoreCase))
+                    && string.Equals(imagePath, getImgFile(p.Id), StringComparison.OrdinalIgnoreCase))
                 {
                     yield return p;
                 }
             }
         }
+
+        private delegate string GetStringByUIntDelegate(uint pid);
 
         /// <summary>
         /// 遍历进程
@@ -373,10 +379,10 @@ namespace AhDung
         }
 
         /// <summary>
-        /// 检测进程是否在本窗口站
+        /// 检测进程是否与本进程在同一个窗口站
         /// </summary>
         /// <exception cref="Win32Exception" />
-        public static bool IsProcessOnWinSta(uint pid)
+        public static bool OnSameWinSta(uint pid)
         {
             //取得本进程所在窗口站
             var ws = NativeMethods.GetProcessWindowStation();
