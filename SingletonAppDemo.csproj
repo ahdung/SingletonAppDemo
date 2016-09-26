@@ -81,7 +81,8 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Utils\AppInfo.cs" />
     <Compile Include="Utils\AppSingleton.cs" />
-    <Compile Include="Utils\MessageHelper.cs" />
+    <Compile Include="Utils\FormHelper.cs" />
+    <Compile Include="Utils\MailslotUtil.cs" />
     <Compile Include="Utils\ProcessHelper.cs" />
     <EmbeddedResource Include="FmMain.resx">
       <DependentUpon>FmMain.cs</DependentUpon>
@@ -99,7 +100,7 @@
     </Compile>
   </ItemGroup>
   <ItemGroup>
-    <None Include="Resources\DemoIcon.gif" />
+    <None Include="Resources\DemoIcon.ico" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

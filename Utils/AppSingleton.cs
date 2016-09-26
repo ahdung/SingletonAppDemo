@@ -1,4 +1,5 @@
 ﻿using System;
+using System.ComponentModel;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -7,34 +8,78 @@ namespace AhDung
 {
     /// <summary>
     /// 单例程序辅助类
-    /// <para>- 需将本类源码放置在主程序集中使用，不可封装成dll再调用，那可能会导致判断不准</para>
+    /// <para>- 需将本类源码放置在主程序集中使用，不可封装成dll再调用，那样会导致判断不准</para>
     /// </summary>
+    /// <remarks>
+    /// 本方案原理：
+    /// - 遍历本窗口站进程（目的是避开承载服务的进程），得到同名、同路径（若pathSensitive=true）进程
+    /// - 若找到，则向它发送约定好的显示代号，然后退出自身
+    /// - 否则创建邮槽并接收消息，当收到显示代号时，触发特定事件
+    /// - 程序主窗体注册上述事件，显示自身
+    /// </remarks>
     public static class AppSingleton
     {
-        //需用类成员保持对互斥体的引用
-        //阻止其在程序运行期间被回收
-        // ReSharper disable once NotAccessedField.Local
-        static Mutex _mutex;
-
-        private static string _mutexNamePrefix;
+        /// <summary>
+        /// 约定的显示代号
+        /// </summary>
+        const short ShowCode = -31753;//0x83F7
 
         /// <summary>
-        /// 互斥体名前缀
+        /// 同步上下文
         /// </summary>
-        private static string MutexNamePrefix
+        static SynchronizationContext SyncContext;
+
+        static EventHandler _showCodeReceived;
+        /// <summary>
+        /// 接收到显示代号后。注意如果在窗体启动前注册，事件可能运行在后台线程
+        /// </summary>
+        public static event EventHandler ShowCodeReceived
+        {
+            add
+            {
+                //之所以放这里取同步上下文，是因为通常是在窗体内注册该事件
+                //意味着执行到这里时，窗体已经启动
+                //此时访问SynchronizationContext.Current才能拿到UI上下文
+                //而在窗体启动前是拿不到的，比如Main方法中
+                //拿UI上下文的目的是在邮槽读取线程中，将事件PO到UI线程执行
+                if (SyncContext == null)
+                {
+                    SyncContext = SynchronizationContext.Current;
+                }
+                _showCodeReceived += value;
+            }
+            remove
+            {
+                // ReSharper disable once DelegateSubtraction
+                _showCodeReceived -= value;
+            }
+        }
+
+        static string _slotNamePrefix;
+        /// <summary>
+        /// 邮槽名前缀（程序集名+程序集GUID）
+        /// </summary>
+        private static string SlotNamePrefix
         {
             get
             {
-                if (_mutexNamePrefix == null)
+                if (_slotNamePrefix == null)
                 {
-                    //互斥名采用【程序集名+程序集GUID】
                     Assembly asm = Assembly.GetExecutingAssembly();
                     string name = asm.GetName().Name;
                     string guid = ((GuidAttribute)Attribute.GetCustomAttribute(asm, typeof(GuidAttribute))).Value;
-                    _mutexNamePrefix = name + guid;
+                    _slotNamePrefix = name + guid;
                 }
-                return _mutexNamePrefix;
+                return _slotNamePrefix;
             }
+        }
+
+        /// <summary>
+        /// 组织邮槽名（前缀+进程ID）
+        /// </summary>
+        private static string MakeSlotName(uint pid)
+        {
+            return SlotNamePrefix + pid;
         }
 
         /// <summary>
@@ -43,106 +88,106 @@ namespace AhDung
         /// <para>- 忽略本窗口站以外的进程</para>
         /// </summary>
         /// <param name="pathSensitive">是否对路径敏感</param>
-        /// <param name="action">已存在时要执行的动作，参数为另一实例的进程ID</param>
-        public static void Ensure(bool pathSensitive = false, Action<uint> action = null)
+        public static void Ensure(bool pathSensitive = false)
         {
             if (!Environment.UserInteractive)
             {
                 return;
             }
 
-            bool exist = false;
+            bool exists = false;
             uint pid = 0;
 
-            //路经相关时：遍历所有该路径的进程（自身除外）
-            if (pathSensitive)
+            foreach (var p in ProcessHelper.EnumProcesses())
             {
-                foreach (var p in ProcessHelper.EnumProcesses(ProcessHelper.CurrentProcessImageFileName))
+                if (p.Id == ProcessHelper.CurrentProcessId
+                    || !string.Equals(p.Name, ProcessHelper.CurrentProcessName, StringComparison.OrdinalIgnoreCase)
+                    || !ProcessHelper.IsProcessOnWinSta(p.Id))//该条件性能最差，故放最后
                 {
-                    if (p.Id == ProcessHelper.CurrentProcessId
-                        || !ProcessHelper.IsProcessOnWinSta(p.Id))
-                    {
-                        continue;
-                    }
+                    continue;
+                }
 
-                    exist = true;
+                if (pathSensitive)
+                {
+                    if (string.Equals(ProcessHelper.GetProcessImageFileNameNt(p.Id), ProcessHelper.CurrentProcessImageFileNameNt, StringComparison.OrdinalIgnoreCase))
+                    {
+                        exists = true;
+                        pid = p.Id;
+                        break;
+                    }
+                    continue;
+                }
+
+                if (MailslotUtil.Exists(MakeSlotName(p.Id)))
+                {
+                    exists = true;
                     pid = p.Id;
                     break;
                 }
             }
-            else//全局时：遍历所有进程，并用固定前缀+pid得到需检测的互斥体名
+
+            if (exists)
             {
-                foreach (var p in ProcessHelper.EnumProcesses())
-                {
-                    if (p.Id == ProcessHelper.CurrentProcessId
-                        || !string.Equals(p.Name, ProcessHelper.CurrentProcessName)//如果要防止改名多开，需注释该行
-                        || !ProcessHelper.IsProcessOnWinSta(p.Id))
-                    {
-                        continue;
-                    }
-
-                    if (ExistMutex(MakeMutexName(p.Id)))
-                    {
-                        exist = true;
-                        pid = p.Id;
-                        break;
-                    }
-                }
-
-                if (!exist)//若不存在指定互斥体，创建一个
-                {
-                    _mutex = new Mutex(true, MakeMutexName(ProcessHelper.CurrentProcessId));
-                }
+                SendShowCode(pid);
+                Environment.Exit(Environment.ExitCode);//Env.Exit后面代码的不会执行
             }
 
-            if (exist)
-            {
-                if (action != null)
-                {
-                    action(pid);
-                }
-                Environment.Exit(Environment.ExitCode);
-            }
+            MailslotUtil.Create(MakeSlotName(ProcessHelper.CurrentProcessId));
+            BeginReceive();
         }
 
         /// <summary>
-        /// 根据进程ID生成互斥体名
+        /// 向已存实例发送显示代号
         /// </summary>
-        private static string MakeMutexName(uint pid)
+        private static void SendShowCode(uint pid)
         {
-            return MutexNamePrefix + pid;
-        }
-
-        /// <summary>
-        /// 是否存在指定名称的互斥体
-        /// </summary>
-        private static bool ExistMutex(string name)
-        {
-            Mutex mutex = null;
             try
             {
-                mutex = Mutex.OpenExisting(name);
-                return true;
+                MailslotUtil.Write(MakeSlotName(pid), ShowCode);
             }
-            catch (WaitHandleCannotBeOpenedException)
+            catch (Win32Exception ex)
             {
-                return false;
-            }
-            finally
-            {
-                if (mutex != null) { mutex.Close(); }
+                //忽略邮槽不存在异常。因为在发送时对方也许已经关闭
+                if (ex.NativeErrorCode != 2) { throw; }
             }
         }
 
-        //WMI方式
-        //private static bool ExistProcessWMI()
-        //{
-        //    Assembly asm = Assembly.GetExecutingAssembly();
-        //    string wql = string.Format(@"select Handle from Win32_Process where ExecutablePath = '{0}'", asm.Location.Replace("\\", "\\\\"));
-        //    using (var q = new ManagementObjectSearcher(wql))
-        //    {
-        //        return q.Get().Count > 1;
-        //    }
-        //}
+        /// <summary>
+        /// 开始接收邮槽消息
+        /// </summary>
+        private static void BeginReceive()
+        {
+            new Thread(none =>
+            {
+                do
+                {
+                    if (MailslotUtil.Read() == ShowCode)
+                    {
+                        if (SyncContext == null)
+                        {
+                            RaiseShowCodeReceived();
+                        }
+                        else
+                        {
+                            SyncContext.Post(arg => RaiseShowCodeReceived(), null);
+                        }
+                    }
+                } while (true);
+
+                // ReSharper disable once FunctionNeverReturns
+            }) { IsBackground = true }.Start();
+        }
+
+        /// <summary>
+        /// 触发ShowCodeReceived事件
+        /// </summary>
+        private static void RaiseShowCodeReceived()
+        {
+            var handler = _showCodeReceived;
+            if (handler != null)
+            {
+                handler(null, null);
+            }
+        }
     }
 }

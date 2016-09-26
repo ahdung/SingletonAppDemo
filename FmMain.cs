@@ -1,6 +1,6 @@
 ﻿using System;
-using System.Drawing;
 using System.Windows.Forms;
+using AhDung.WinForm;
 
 namespace AhDung
 {
@@ -8,15 +8,16 @@ namespace AhDung
     {
         bool _exit;
 
+
         public FmMain()
         {
             InitializeComponent();
 
             this.Text = AppInfo.TitleAndVer;
-            tray.Icon = Icon.FromHandle(Properties.Resources.DemoIcon.GetHicon());
+            tray.Icon = Properties.Resources.DemoIcon;
 
             //响应该事件，以在收到特定消息时显示自身
-            MessageHelper.ShowMessageReceived += showFormToolStripMenuItem_Click;
+            AppSingleton.ShowCodeReceived += showFormToolStripMenuItem_Click;
         }
 
         private void FmMain_FormClosing(object sender, FormClosingEventArgs e)
@@ -32,7 +33,7 @@ namespace AhDung
         private void showFormToolStripMenuItem_Click(object sender, EventArgs e)
         {
             tray.Visible = false;
-            MessageHelper.ShowForm(this);
+            FormHelper.EnsureShow(this);
         }
 
         private void exitToolStripMenuItem_Click(object sender, EventArgs e)
@@ -45,5 +46,6 @@ namespace AhDung
         {
             showFormToolStripMenuItem.PerformClick();
         }
+
     }
 }
