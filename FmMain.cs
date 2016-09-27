@@ -6,9 +6,6 @@ namespace AhDung
 {
     public partial class FmMain : Form
     {
-        bool _exit;
-
-
         public FmMain()
         {
             InitializeComponent();
@@ -22,11 +19,11 @@ namespace AhDung
 
         private void FmMain_FormClosing(object sender, FormClosingEventArgs e)
         {
-            if (!_exit && e.CloseReason == CloseReason.UserClosing)
+            if (e.CloseReason == CloseReason.UserClosing)
             {
-                this.Hide();
-                tray.Visible = true;
                 e.Cancel = true;
+                tray.Visible = true;
+                this.Hide();
             }
         }
 
@@ -38,8 +35,7 @@ namespace AhDung
 
         private void exitToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            _exit = true;
-            this.Close();
+            Application.Exit();
         }
 
         private void tray_DoubleClick(object sender, EventArgs e)
@@ -47,5 +43,9 @@ namespace AhDung
             showFormToolStripMenuItem.PerformClick();
         }
 
+        private void btnExit_Click(object sender, EventArgs e)
+        {
+            Application.Exit();
+        }
     }
 }

@@ -12,6 +12,9 @@ namespace AhDung
     [SuppressUnmanagedCodeSecurity]
     public static class MailslotUtil
     {
+        /// <summary>
+        /// 已创建的邮槽句柄。不用显式释放，创建它的程序关闭后系统会自动回收的
+        /// </summary>
         static IntPtr _mailslot;
 
         /// <summary>

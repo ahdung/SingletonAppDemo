@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Security;
 using System.Text;
 
 namespace AhDung
@@ -11,11 +12,12 @@ namespace AhDung
     /// <summary>
     /// 进程辅助类
     /// </summary>
+    [SuppressUnmanagedCodeSecurity]
     public static class ProcessHelper
     {
         static readonly bool _isNt5;
-        static readonly uint _processAccessRights;
-        static uint _crrPid;
+        static readonly int _processAccessRights;
+        static int _crrPid = -1;
         static string _crrPName;
         static string _crrPPath;
         static string _crrPPathNt;
@@ -23,11 +25,11 @@ namespace AhDung
         /// <summary>
         /// 当前进程ID
         /// </summary>
-        public static uint CurrentProcessId
+        public static int CurrentProcessId
         {
             get
             {
-                return _crrPid == 0
+                return _crrPid == -1
                 ? (_crrPid = NativeMethods.GetCurrentProcessId())
                 : _crrPid;
             }
@@ -72,8 +74,8 @@ namespace AhDung
 
             _isNt5 = Environment.OSVersion.Version.Major == 5;
             _processAccessRights = _isNt5
-                ? 0x410U   //PROCESS_QUERY_INFORMATION(0x400) | PROCESS_VM_READ(0x10，读session0进程需要)
-                : 0x1000U; //PROCESS_QUERY_LIMITED_INFORMATION，NT6才支持该权限，好处是可以读audiodg.exe这样的进程
+                ? 0x410   //PROCESS_QUERY_INFORMATION(0x400) | PROCESS_VM_READ(0x10，读session0进程需要)
+                : 0x1000; //PROCESS_QUERY_LIMITED_INFORMATION，NT6才支持该权限，好处是可以读audiodg.exe这样的进程
         }
 
         /// <summary>
@@ -103,12 +105,12 @@ namespace AhDung
             //这样比先用GetModuleFileName取得dos路径，再转nt路径来的快
             //转换用QueryDosDevice、NtQuerySymbolicLinkObject性能都不理想
 
-            uint errCode;
+            int errCode;
             IntPtr crrHandle = NativeMethods.GetCurrentProcess();//此句柄不用释放，虚拟的
             string result = GetProcessImageFileNameCore(crrHandle, true, out errCode);
             if (errCode != 0)
             {
-                throw Win32ErrorHelper.ExceptionBuilder("获取当前进程映像路径失败！", (int)errCode);
+                throw Win32ErrorHelper.ExceptionBuilder("获取当前进程映像路径失败！", errCode);
             }
             return result;
         }
@@ -117,9 +119,9 @@ namespace AhDung
         /// 根据进程ID获取映像文件路径。出错返回NULL，不抛异常
         /// <para>- 应优先使用GetProcessImageFileNameNt，性能高</para>
         /// </summary>
-        public static string GetProcessImageFileName(uint pid)
+        public static string GetProcessImageFileName(int pid)
         {
-            uint errCode;
+            int errCode;
             return GetProcessImageFileNameCore(pid, false, out errCode);
         }
 
@@ -127,7 +129,7 @@ namespace AhDung
         /// 根据进程ID获取映像文件路径。出错返回NULL和错误码，不抛异常
         /// <para>- 应优先使用GetProcessImageFileNameNt，性能高</para>
         /// </summary>
-        public static string GetProcessImageFileName(uint pid, out uint errorCode)
+        public static string GetProcessImageFileName(int pid, out int errorCode)
         {
             return GetProcessImageFileNameCore(pid, false, out errorCode);
         }
@@ -135,16 +137,16 @@ namespace AhDung
         /// <summary>
         /// 根据进程ID获取映像路径（NT）。出错返回NULL，不抛异常
         /// </summary>
-        public static string GetProcessImageFileNameNt(uint pid)
+        public static string GetProcessImageFileNameNt(int pid)
         {
-            uint errCode;
+            int errCode;
             return GetProcessImageFileNameCore(pid, true, out errCode);
         }
 
         /// <summary>
         /// 根据进程ID获取映像路径（NT）。出错返回NULL和错误码，不抛异常
         /// </summary>
-        public static string GetProcessImageFileNameNt(uint pid, out uint errorCode)
+        public static string GetProcessImageFileNameNt(int pid, out int errorCode)
         {
             return GetProcessImageFileNameCore(pid, true, out errorCode);
         }
@@ -154,7 +156,7 @@ namespace AhDung
         /// <para>- 出错返回null，不抛异常</para>
         /// <para>- errorCode为0表示成功</para>
         /// </summary>
-        private static string GetProcessImageFileNameCore(uint pid, bool inNtPath, out uint errorCode)
+        private static string GetProcessImageFileNameCore(int pid, bool inNtPath, out int errorCode)
         {
             if (pid == 0 || pid == 4)
             {
@@ -169,7 +171,7 @@ namespace AhDung
                 p = NativeMethods.OpenProcess(_processAccessRights, false, pid);
                 if (p == IntPtr.Zero)
                 {
-                    errorCode = (uint)Marshal.GetLastWin32Error();
+                    errorCode = Marshal.GetLastWin32Error();
                     return null;
                 }
 
@@ -186,19 +188,19 @@ namespace AhDung
         /// <para>- 出错返回null，不抛异常</para>
         /// <para>- errorCode为0表示成功</para>
         /// </summary>
-        private static string GetProcessImageFileNameCore(IntPtr handle, bool inNtPath, out uint errorCode)
+        private static string GetProcessImageFileNameCore(IntPtr handle, bool inNtPath, out int errorCode)
         {
             //nt5使用GetProcessImageFileName取NT路径，用GetModuleFileNameEx取Dos路径
             //nt6用QueryFullProcessImageName一站搞掂
 
             StringBuilder sb = new StringBuilder(300);//nt格式可能会超过260字符
-            uint retVal;
+            int retVal;
 
             if (_isNt5)
             {
                 retVal = inNtPath
-                   ? NativeMethods.GetProcessImageFileName(handle, sb, (uint)sb.Capacity)
-                   : NativeMethods.GetModuleFileNameEx(handle, IntPtr.Zero, sb, (uint)sb.Capacity);
+                   ? NativeMethods.GetProcessImageFileName(handle, sb, sb.Capacity)
+                   : NativeMethods.GetModuleFileNameEx(handle, IntPtr.Zero, sb, sb.Capacity);
             }
             else
             {
@@ -209,7 +211,7 @@ namespace AhDung
             //上述API返回0均代表失败
             if (retVal == 0)
             {
-                errorCode = (uint)Marshal.GetLastWin32Error();
+                errorCode = Marshal.GetLastWin32Error();
                 return null;
             }
 
@@ -220,24 +222,40 @@ namespace AhDung
         /// <summary>
         /// 本程序是否存在另一个进程
         /// </summary>
-        public static bool ExistAnother()
+        /// <param name="thisWinSta">是否仅限本窗口站范围</param>
+        public static bool ExistsAnother(bool thisWinSta = false)
+        {
+            int pid;
+            return ExistsAnother(out pid, thisWinSta);
+        }
+
+        /// <summary>
+        /// 本程序是否存在另一个进程
+        /// </summary>
+        /// <param name="pid">找到的进程ID。找不到则返回-1</param>
+        /// <param name="thisWinSta">是否仅限本窗口站范围</param>
+        public static bool ExistsAnother(out int pid, bool thisWinSta = false)
         {
             foreach (var p in EnumProcesses())
             {
                 //判断顺序重要，性能考虑
                 if (string.Equals(CurrentProcessName, p.Name, StringComparison.OrdinalIgnoreCase)
                     && CurrentProcessId != p.Id
-                    && string.Equals(CurrentProcessImageFileNameNt, GetProcessImageFileNameNt(p.Id), StringComparison.OrdinalIgnoreCase))
-                { return true; }
+                    && string.Equals(CurrentProcessImageFileNameNt, GetProcessImageFileNameNt(p.Id), StringComparison.OrdinalIgnoreCase)
+                    && (!thisWinSta || OnSameWinSta(p.Id)))
+                {
+                    pid = p.Id;
+                    return true;
+                }
             }
-
+            pid = -1;
             return false;
         }
 
         /// <summary>
         /// 是否存在映像文件路径为imagePath的进程（Dos格式）
         /// </summary>
-        public static bool ExistByPath(string imagePath)
+        public static bool ExistsByPath(string imagePath)
         {
             using (var e = EnumProcesses(imagePath).GetEnumerator())
             {
@@ -280,7 +298,7 @@ namespace AhDung
             }
 
             //等候进程结束，或超时返回
-            uint state = NativeMethods.WaitForMultipleObjects((uint)handles.Count, handles.ToArray(), true, 5000/*5s*/);
+            uint state = NativeMethods.WaitForMultipleObjects(handles.Count, handles.ToArray(), true, 5000/*5s*/);
             handles.ForEach(p => NativeMethods.CloseHandle(p));//及时释放句柄
 
             if (state == 0x102/*WAIT_TIMEOUT*/)
@@ -310,9 +328,9 @@ namespace AhDung
             }
 
             string pName = Path.GetFileName(imagePath);
-            GetStringByUIntDelegate getImgFile = isNtPath
-                ? new GetStringByUIntDelegate(GetProcessImageFileNameNt)
-                : new GetStringByUIntDelegate(GetProcessImageFileName);
+            GetStringByIntDelegate getImgFile = isNtPath
+                ? new GetStringByIntDelegate(GetProcessImageFileNameNt)
+                : GetProcessImageFileName;
 
             foreach (var p in EnumProcesses())
             {
@@ -324,7 +342,7 @@ namespace AhDung
             }
         }
 
-        private delegate string GetStringByUIntDelegate(uint pid);
+        private delegate string GetStringByIntDelegate(int pid);
 
         /// <summary>
         /// 遍历进程
@@ -364,7 +382,7 @@ namespace AhDung
                     pInfo = new NativeMethods.SystemProcessInformation();
                     Marshal.PtrToStructure(next, pInfo);
 
-                    var id = (uint)pInfo.UniqueProcessId;
+                    var id = (int)pInfo.UniqueProcessId;
                     var name = id == 0 ? "Idle" : Marshal.PtrToStringUni(pInfo.NamePtr);
 
                     yield return new ProcessInfo(id, name);
@@ -382,7 +400,7 @@ namespace AhDung
         /// 检测进程是否与本进程在同一个窗口站
         /// </summary>
         /// <exception cref="Win32Exception" />
-        public static bool OnSameWinSta(uint pid)
+        public static bool OnSameWinSta(int pid)
         {
             //取得本进程所在窗口站
             var ws = NativeMethods.GetProcessWindowStation();
@@ -406,7 +424,7 @@ namespace AhDung
                 //对得上就返回true并结束后续遍历
                 NativeMethods.EnumDesktopWindows(desk, (window, prm) =>
                 {
-                    uint pid2;
+                    int pid2;
                     NativeMethods.GetWindowThreadProcessId(window, out pid2);
                     if (pid == pid2)
                     {
@@ -430,22 +448,22 @@ namespace AhDung
         private static class NativeMethods
         {
             [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Auto), PreserveSig]
-            public static extern uint GetModuleFileName(IntPtr hModule, [Out]StringBuilder lpFilename, int nSize);
+            public static extern int GetModuleFileName(IntPtr hModule, [Out]StringBuilder lpFilename, int nSize);
 
             [DllImport("kernel32.dll", SetLastError = true)]
-            public static extern uint GetCurrentProcessId();
+            public static extern int GetCurrentProcessId();
 
             [DllImport("kernel32.dll", SetLastError = true)]
             public static extern IntPtr GetCurrentProcess();
 
             [DllImport("psapi.dll", SetLastError = true)]
-            public static extern uint GetProcessImageFileName(IntPtr hProcess, [Out] StringBuilder lpImageFileName, uint nSize);
+            public static extern int GetProcessImageFileName(IntPtr hProcess, [Out] StringBuilder lpImageFileName, int nSize);
 
             [DllImport("ntdll.dll", SetLastError = true, CharSet = CharSet.Auto)]
             public static extern uint NtQuerySystemInformation(int query, IntPtr dataPtr, uint size, out uint returnedSize);
 
             [DllImport("kernel32.dll", SetLastError = true)]
-            public static extern IntPtr OpenProcess(uint desiredAccess, bool inheritHandle, uint processId);
+            public static extern IntPtr OpenProcess(int desiredAccess, bool inheritHandle, int processId);
 
             [DllImport("kernel32.dll", SetLastError = true)]
             [return: MarshalAs(UnmanagedType.Bool)]
@@ -456,13 +474,13 @@ namespace AhDung
             public static extern bool CloseHandle(IntPtr hObject);
 
             [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Auto)]
-            public static extern uint QueryFullProcessImageName(IntPtr hProcess, bool dwFlags, [Out] StringBuilder lpImageFileName, ref int nSize);
+            public static extern int QueryFullProcessImageName(IntPtr hProcess, bool dwFlags, [Out] StringBuilder lpImageFileName, ref int nSize);
 
             [DllImport("psapi.dll", SetLastError = true, CharSet = CharSet.Auto)]
-            public static extern uint GetModuleFileNameEx(IntPtr processHandle, IntPtr moduleHandle, [Out]StringBuilder baseName, uint size);
+            public static extern int GetModuleFileNameEx(IntPtr processHandle, IntPtr moduleHandle, [Out]StringBuilder baseName, int size);
 
             [DllImport("kernel32.dll", SetLastError = true)]
-            public static extern uint WaitForMultipleObjects(uint nCount, IntPtr[] handles, bool bWaitAll, uint dwMilliseconds);
+            public static extern uint WaitForMultipleObjects(int nCount, IntPtr[] handles, bool bWaitAll, int dwMilliseconds);
 
             [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Auto)]
             public static extern int FormatMessage(int dwFlags, IntPtr lpSource, int dwMessageId, int dwLanguageId, StringBuilder lpBuffer, int nSize, IntPtr va_list_arguments);
@@ -529,7 +547,7 @@ namespace AhDung
             public static extern bool EnumDesktopWindows(IntPtr hDesktop, EnumWindowsProc lpfn, int lParam);
 
             [DllImport("user32.dll")]
-            public static extern int GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+            public static extern int GetWindowThreadProcessId(IntPtr hWnd, out int lpdwProcessId);
 
             [DllImport("user32.dll", SetLastError = true)]
             public static extern bool CloseDesktop(IntPtr hDesktop);
@@ -607,14 +625,14 @@ namespace AhDung
         /// <summary>
         /// 进程ID
         /// </summary>
-        public readonly uint Id;
+        public readonly int Id;
 
         /// <summary>
         /// 进程名（含.exe）
         /// </summary>
         public readonly string Name;
 
-        internal ProcessInfo(uint id, string name)
+        internal ProcessInfo(int id, string name)
         {
             Id = id;
             Name = name;

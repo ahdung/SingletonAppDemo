@@ -34,6 +34,7 @@
             this.conMenu = new System.Windows.Forms.ContextMenuStrip(this.components);
             this.showFormToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.exitToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.btnExit = new System.Windows.Forms.Button();
             this.conMenu.SuspendLayout();
             this.SuspendLayout();
             // 
@@ -42,9 +43,9 @@
             this.label1.AutoSize = true;
             this.label1.Location = new System.Drawing.Point(12, 28);
             this.label1.Name = "label1";
-            this.label1.Size = new System.Drawing.Size(335, 12);
+            this.label1.Size = new System.Drawing.Size(281, 12);
             this.label1.TabIndex = 0;
-            this.label1.Text = "Click close button to hide this form and show TrayIcon.";
+            this.label1.Text = "Click [X] to hide this form and show TrayIcon.";
             // 
             // tray
             // 
@@ -74,11 +75,22 @@
             this.exitToolStripMenuItem.Text = "Exit";
             this.exitToolStripMenuItem.Click += new System.EventHandler(this.exitToolStripMenuItem_Click);
             // 
+            // btnExit
+            // 
+            this.btnExit.Location = new System.Drawing.Point(12, 67);
+            this.btnExit.Name = "btnExit";
+            this.btnExit.Size = new System.Drawing.Size(98, 23);
+            this.btnExit.TabIndex = 1;
+            this.btnExit.Text = "or exit";
+            this.btnExit.UseVisualStyleBackColor = true;
+            this.btnExit.Click += new System.EventHandler(this.btnExit_Click);
+            // 
             // FmMain
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 12F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(372, 150);
+            this.Controls.Add(this.btnExit);
             this.Controls.Add(this.label1);
             this.Name = "FmMain";
             this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.FmMain_FormClosing);
@@ -95,6 +107,7 @@
         private System.Windows.Forms.ContextMenuStrip conMenu;
         private System.Windows.Forms.ToolStripMenuItem showFormToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem exitToolStripMenuItem;
+        private System.Windows.Forms.Button btnExit;
     }
 }
 
