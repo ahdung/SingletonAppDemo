@@ -10,11 +10,8 @@ namespace AhDung
         {
             InitializeComponent();
 
-            this.Text = AppInfo.TitleAndVer;
+            Text = AppInfo.TitleAndVer;
             tray.Icon = Properties.Resources.DemoIcon;
-
-            //响应该事件，以在收到特定消息时显示自身
-            AppSingleton.ShowCodeReceived += showFormToolStripMenuItem_Click;
         }
 
         private void FmMain_FormClosing(object sender, FormClosingEventArgs e)
@@ -22,14 +19,12 @@ namespace AhDung
             if (e.CloseReason == CloseReason.UserClosing)
             {
                 e.Cancel = true;
-                tray.Visible = true;
                 this.Hide();
             }
         }
 
         private void showFormToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            tray.Visible = false;
             FormHelper.EnsureShow(this);
         }
 
@@ -46,6 +41,11 @@ namespace AhDung
         private void btnExit_Click(object sender, EventArgs e)
         {
             Application.Exit();
+        }
+
+        private void FmMain_VisibleChanged(object sender, EventArgs e)
+        {
+            tray.Visible = !Visible;
         }
     }
 }

@@ -89,11 +89,13 @@
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 12F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(372, 150);
+            this.ClientSize = new System.Drawing.Size(645, 414);
             this.Controls.Add(this.btnExit);
             this.Controls.Add(this.label1);
             this.Name = "FmMain";
+            this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
             this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.FmMain_FormClosing);
+            this.VisibleChanged += new System.EventHandler(this.FmMain_VisibleChanged);
             this.conMenu.ResumeLayout(false);
             this.ResumeLayout(false);
             this.PerformLayout();

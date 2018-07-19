@@ -15,8 +15,8 @@ namespace AhDung
     ///   - 路径攸关时，找进程（忽略本窗口站以外的进程，以避开承载服务的进程）
     ///   - 否则找邮槽
     /// - 找到后可选是否显示对方，然后退出自身
-    /// - 没找到的话，按需创建邮槽并接收消息，当收到显示代号时，触发特定事件
-    /// - 程序主窗体注册上述事件，显示自身
+    /// - 没找到的话，按需创建邮槽并接收消息，当收到显示代号时，触发ShowCodeReceived事件
+    /// - 程序注册上述事件，如何显示自己负责实现
     /// </remarks>
     public static class AppSingleton
     {
@@ -89,7 +89,7 @@ namespace AhDung
         /// <para>- 忽略本窗口站以外的进程</para>
         /// </summary>
         /// <param name="sysWide">是否在系统范围检测。否则仅检测同路径</param>
-        /// <param name="showIt">是否让已存实例显示</param>
+        /// <param name="showIt">是否让已存实例显示。如果为true，记得注册ShowCodeReceived事件</param>
         public static void Ensure(bool sysWide = false, bool showIt = false)
         {
             if (!Environment.UserInteractive)
